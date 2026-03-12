@@ -24,9 +24,8 @@ import { useTheme } from '../context/ThemeContext';
 import { useExpenses } from '../context/ExpensesContext';
 import { useToast } from '../context/ToastContext';
 import { CATS, type Category } from '../constants/categories';
-import { SuccessOverlay } from '../components/SuccessOverlay';
-import { ErrorOverlay } from '../components/ErrorOverlay';
 import { BouncingDots } from '../components/BouncingDots';
+import { LoadingWallet } from '../components/LoadingWallet';
 import { formatDate } from '../lib/format';
 
 // ─── Category button — extracted to avoid hook-in-loop ───────────────────────
@@ -91,9 +90,7 @@ export default function AddExpenseScreen() {
   const [category, setCategory]       = useState('Food');
   const [date]                        = useState(today);
 
-  const [loading, setLoading]         = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [errorMsg, setErrorMsg]       = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
     Keyboard.dismiss();
@@ -105,8 +102,8 @@ export default function AddExpenseScreen() {
       showToast('error', 'Please enter a title for the expense.');
       return;
     }
+    setLoading(true);
     try {
-      setLoading(true);
       await addExpense({
         title: title.trim(),
         amount: parseFloat(amount),
@@ -114,11 +111,11 @@ export default function AddExpenseScreen() {
         date,
         note: '',
       });
-      setLoading(false);
-      setShowSuccess(true);
+      router.back();
+      showToast('success', 'Expense added successfully.');
     } catch (err: any) {
-      setLoading(false);
-      setErrorMsg(err?.message ?? 'Failed to save expense. Please try again.');
+      router.back();
+      showToast('error', err?.message ?? 'Failed to save expense. Please try again.');
     }
   };
 
@@ -261,19 +258,10 @@ export default function AddExpenseScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Overlays */}
-      {showSuccess && (
-        <SuccessOverlay
-          amount={parseFloat(amount) || 0}
-          category={category}
-          onDismiss={() => router.back()}
-        />
-      )}
-      {errorMsg && (
-        <ErrorOverlay
-          message={errorMsg}
-          onDismiss={() => setErrorMsg(null)}
-        />
+      {loading && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.bg, zIndex: 100 }]}>
+          <LoadingWallet targetAmount={parseFloat(amount) || 0} />
+        </View>
       )}
     </View>
   );

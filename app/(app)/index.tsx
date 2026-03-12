@@ -27,6 +27,8 @@ import { useGreeting } from '../../hooks/useGreeting';
 import { AnimatedProgressBar } from '../../components/AnimatedProgressBar';
 import { LoadingWallet } from '../../components/LoadingWallet';
 import { MonthPicker } from '../../components/MonthPicker';
+import { EditExpenseModal } from '../../components/EditExpenseModal';
+import type { Expense } from '../../constants/mockData';
 import { CATS } from '../../constants/categories';
 import {
   formatLKR,
@@ -48,6 +50,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
 
   const [activeCategory, setActiveCategory] = useState<string>('All');
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
 
   const now = new Date();
   const [selYear, setSelYear]   = useState(now.getFullYear());
@@ -271,6 +274,7 @@ export default function HomeScreen() {
               index={index}
               theme={theme}
               onDelete={() => deleteExpense(expense.id)}
+              onEdit={() => setEditingExpense(expense)}
             />
           ))
         )}
@@ -325,6 +329,12 @@ export default function HomeScreen() {
           <LoadingWallet />
         </View>
       )}
+
+      <EditExpenseModal
+        expense={editingExpense}
+        onClose={() => setEditingExpense(null)}
+        theme={theme}
+      />
     </View>
   );
 }
@@ -410,9 +420,9 @@ function CategoryChipWithIcon({
 }
 
 function ExpenseItem({
-  expense, index, theme, onDelete,
+  expense, index, theme, onDelete, onEdit,
 }: {
-  expense: any; index: number; theme: any; onDelete: () => void;
+  expense: any; index: number; theme: any; onDelete: () => void; onEdit: () => void;
 }) {
   const cat = CATS.find((c) => c.name === expense.category) ?? CATS[5];
   const Icon = cat.Icon;
@@ -441,7 +451,9 @@ function ExpenseItem({
         friction={2}
         rightThreshold={40}
       >
-        <View
+        <TouchableOpacity
+          onPress={onEdit}
+          activeOpacity={0.75}
           style={[
             styles.expenseItem,
             {
@@ -468,7 +480,7 @@ function ExpenseItem({
           <Text style={[styles.expenseAmount, { color: theme.text, fontFamily: 'Sora_700Bold' }]}>
             {formatLKR(expense.amount)}
           </Text>
-        </View>
+        </TouchableOpacity>
       </Swipeable>
     </Animated.View>
   );
