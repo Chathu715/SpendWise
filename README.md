@@ -4,14 +4,16 @@ A personal expense tracker mobile app built with React Native (Expo) and Supabas
 
 ## Features
 
-- **Authentication** — Sign up / Sign in with email & password via Supabase Auth
-- **Expense Tracking** — Log expenses with title, amount, category, and date
+- **Authentication** — Sign up / Sign in with email & password via Supabase Auth; session persisted securely on device
+- **Expense Tracking** — Log expenses with title, amount, category, date, and optional note
+- **Delete Expense** — Swipe left on any expense to delete; soft-deleted in the database (recoverable)
 - **Category Filtering** — Browse expenses by Food, Transport, Shopping, Health, Entertainment, Other
+- **Month Navigation** — Browse expenses and analytics for any past month using the month picker
 - **Monthly Summary** — See total spent vs. monthly spending limit with an animated progress bar
-- **Analytics** — Weekly bar chart + per-category breakdown with percentage shares
-- **Spending Limits** — Set overall and per-category monthly limits; warned at 80%, alerted when exceeded
+- **Analytics** — Weekly bar chart (Wk 1–5) + per-category breakdown with percentage shares, navigable by month
+- **Spending Limits** — Set overall and per-category monthly limits; category limits are validated against the overall budget; warned at 80%, alerted when exceeded
 - **Theme Support** — Light, Dark, and System (follows device) themes with smooth transitions
-- **Animations** — Splash screen sequence, success/error overlays, toast notifications, button loading states
+- **Animations** — Splash screen sequence, loading overlays, toast notifications, animated progress bars
 - **Safe Area Handling** — Proper notch, Dynamic Island, and gesture bar support on all screens
 
 ## Tech Stack
@@ -20,9 +22,11 @@ A personal expense tracker mobile app built with React Native (Expo) and Supabas
 - Expo Router (file-based navigation)
 - Supabase (Auth + PostgreSQL with RLS)
 - react-native-reanimated v3
+- react-native-gesture-handler (swipe interactions)
 - lucide-react-native (icons)
 - @expo-google-fonts/sora (typography)
 - expo-linear-gradient
+- expo-secure-store (session persistence)
 - react-native-safe-area-context
 
 ## Setup
@@ -31,7 +35,7 @@ A personal expense tracker mobile app built with React Native (Expo) and Supabas
 
 ```bash
 git clone <your-repo-url>
-cd spendwise
+cd SpendWise
 ```
 
 ### 2. Install dependencies
@@ -44,7 +48,8 @@ npm install
 
 1. Create a project at [supabase.com](https://supabase.com)
 2. Run the SQL from the **Database Schema** section below in the Supabase SQL editor
-3. Copy your project URL and anon key from **Project Settings → API**
+3. Go to **Authentication → Sign In / Providers → Email** and disable **Confirm email** so users can sign in immediately after registration
+4. Copy your project URL and anon key from **Project Settings → API**
 
 ### 4. Configure environment variables
 
@@ -100,7 +105,8 @@ create table expenses (
   category text not null check (category in ('Food','Transport','Shopping','Health','Entertainment','Other')),
   date date not null,
   note text default '',
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  deleted_at timestamptz default null
 );
 
 -- Spending limits table
@@ -135,6 +141,8 @@ create policy "Users own their limits"
 ## Assumptions
 
 - All currency is displayed in Sri Lankan Rupees (LKR)
-- Monthly limits reset automatically because expenses are filtered by current calendar month — no data is deleted
-- The app starts with mock/demo data pre-loaded so the UI can be evaluated without a live Supabase connection
-- "Forgot password" UI is present but email reset flow is not implemented in this version
+- Monthly limits reset automatically because expenses are filtered by the selected calendar month — no data is deleted
+- Deleted expenses are soft-deleted (the `deleted_at` column is set) rather than permanently removed, so data remains recoverable
+- The sum of all per-category spending limits cannot exceed the overall monthly limit; this is enforced in the UI
+- Email confirmation is disabled in Supabase so users can sign in immediately after registration
+- "Forgot password" UI is present on the login screen but the email reset flow is not implemented in this version
