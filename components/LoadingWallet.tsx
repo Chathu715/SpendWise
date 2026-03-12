@@ -13,6 +13,7 @@ interface Props {
 interface Coin {
   id: number;
   x: number;
+  dx: number;   // horizontal drift toward wallet center (px)
   size: number;
   anim: Animated.Value;
 }
@@ -24,56 +25,67 @@ export function LoadingWallet({ targetAmount = 0 }: Props) {
   const [coins, setCoins] = useState<Coin[]>([]);
   const coinIdRef = useRef(0);
 
+  // Pick a display target — use real amount if provided, else animate to a random value
+  const displayTarget = useRef(
+    targetAmount > 0 ? targetAmount : Math.floor(80000 + Math.random() * 420000)
+  ).current;
+
   // Wallet pulse
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(walletAnim, { toValue: 1.08, duration: 700, useNativeDriver: true }),
-        Animated.timing(walletAnim, { toValue: 1.0,  duration: 700, useNativeDriver: true }),
+        Animated.timing(walletAnim, { toValue: 1.1, duration: 650, useNativeDriver: true }),
+        Animated.timing(walletAnim, { toValue: 1.0, duration: 650, useNativeDriver: true }),
       ])
     ).start();
   }, []);
 
-  // LKR counter
+  // LKR counter — always runs, counts up to displayTarget
   useEffect(() => {
-    if (targetAmount === 0) return;
+    let frameId: number;
     let start: number | null = null;
-    const duration = 1800;
+    const duration = 2200;
     const animate = (ts: number) => {
       if (!start) start = ts;
       const progress = Math.min((ts - start) / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
-      setCount(Math.round(targetAmount * eased));
-      if (progress < 1) requestAnimationFrame(animate);
+      setCount(Math.round(displayTarget * eased));
+      if (progress < 1) {
+        frameId = requestAnimationFrame(animate);
+      }
     };
-    requestAnimationFrame(animate);
-  }, [targetAmount]);
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
+  }, [displayTarget]);
 
-  // Spawn coins
+  // Spawn coins continuously
   useEffect(() => {
     const spawnCoin = () => {
       const id = coinIdRef.current++;
       const anim = new Animated.Value(0);
+      const x = 10 + Math.random() * 80;        // spread across stage width
+      const dx = (50 - x) * 1.4;               // converge toward center (50%)
       setCoins((prev) => [
-        ...prev.slice(-5),
-        { id, x: 30 + Math.random() * 40, size: 10 + Math.random() * 8, anim },
+        ...prev.slice(-8),
+        { id, x, dx, size: 9 + Math.random() * 9, anim },
       ]);
       Animated.timing(anim, {
         toValue: 1,
-        duration: 900 + Math.random() * 400,
+        duration: 800 + Math.random() * 500,
         useNativeDriver: true,
       }).start(() => {
         setCoins((prev) => prev.filter((c) => c.id !== id));
       });
     };
-    const interval = setInterval(spawnCoin, 220);
+    spawnCoin();
+    const interval = setInterval(spawnCoin, 180);
     return () => clearInterval(interval);
   }, []);
 
   return (
     <View style={styles.container}>
-      {/* Wallet + falling coins */}
-      <View style={styles.walletWrap}>
+      {/* Coin rain area — separate layer so coins aren't clipped by wallet box */}
+      <View style={styles.coinStage} pointerEvents="none">
         {coins.map((coin) => (
           <Animated.View
             key={coin.id}
@@ -89,35 +101,49 @@ export function LoadingWallet({ targetAmount = 0 }: Props) {
                   {
                     translateY: coin.anim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [-60, 80],
+                      outputRange: [0, 170],
+                    }),
+                  },
+                  {
+                    translateX: coin.anim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, coin.dx],
+                    }),
+                  },
+                  {
+                    scale: coin.anim.interpolate({
+                      inputRange: [0, 0.6, 1],
+                      outputRange: [1, 0.8, 0.1],
                     }),
                   },
                   {
                     rotate: coin.anim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: ['0deg', '360deg'],
+                      outputRange: ['0deg', '540deg'],
                     }),
                   },
                 ],
                 opacity: coin.anim.interpolate({
-                  inputRange: [0, 0.15, 0.8, 1],
-                  outputRange: [0, 1, 1, 0],
+                  inputRange: [0, 0.08, 0.65, 1],
+                  outputRange: [0, 1, 0.9, 0],
                 }),
               },
             ]}
           />
         ))}
-        <Animated.View style={{ transform: [{ scale: walletAnim }] }}>
-          <LinearGradient
-            colors={['#6C63FF', '#9B8FFF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.walletBg}
-          >
-            <Wallet size={40} color="#fff" strokeWidth={1.5} />
-          </LinearGradient>
-        </Animated.View>
       </View>
+
+      {/* Wallet icon */}
+      <Animated.View style={{ transform: [{ scale: walletAnim }] }}>
+        <LinearGradient
+          colors={['#6C63FF', '#9B8FFF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.walletBg}
+        >
+          <Wallet size={40} color="#fff" strokeWidth={1.5} />
+        </LinearGradient>
+      </Animated.View>
 
       {/* Counter */}
       <View style={styles.counterWrap}>
@@ -141,12 +167,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 24,
   },
-  walletWrap: {
-    position: 'relative',
-    width: 100,
-    height: 100,
-    alignItems: 'center',
-    justifyContent: 'center',
+  coinStage: {
+    position: 'absolute',
+    width: '80%',
+    height: 200,
+    top: '50%',
+    marginTop: -170,   // coins travel 170px → land exactly at wallet center
   },
   coin: {
     position: 'absolute',

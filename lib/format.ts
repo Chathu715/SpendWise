@@ -25,6 +25,30 @@ export const getFirstDayOfMonth = (): string => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 };
 
+export const getMonthLabel = (year: number, month: number): string =>
+  new Date(year, month - 1, 1).toLocaleDateString('en-LK', { month: 'long', year: 'numeric' });
+
+const pad = (n: number) => String(n).padStart(2, '0');
+
+export const getMonthRange = (year: number, month: number) => {
+  const lastDay = new Date(year, month, 0).getDate();
+  return {
+    first: `${year}-${pad(month)}-01`,
+    last:  `${year}-${pad(month)}-${pad(lastDay)}`,
+  };
+};
+
+export const prevMonth = (year: number, month: number) =>
+  month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
+
+export const nextMonth = (year: number, month: number) =>
+  month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
+
+export const isCurrentMonth = (year: number, month: number): boolean => {
+  const now = new Date();
+  return year === now.getFullYear() && month === now.getMonth() + 1;
+};
+
 export const getWarningLevel = (
   spent: number,
   limit: number

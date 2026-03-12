@@ -8,7 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import { Wallet, Eye, EyeOff } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { LoadingWallet } from '../../components/LoadingWallet';
 
 export default function LoginScreen() {
   const { theme } = useTheme();
@@ -32,6 +33,7 @@ export default function LoginScreen() {
   const passwordRef = useRef<TextInput>(null);
 
   const handleSignIn = async () => {
+    Keyboard.dismiss();
     if (!email.trim() || !password.trim()) {
       showToast('error', 'Please enter your email and password.');
       return;
@@ -170,13 +172,9 @@ export default function LoginScreen() {
             end={{ x: 1, y: 0 }}
             style={[styles.btn, { opacity: loading ? 0.75 : 1 }]}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={[styles.btnText, { fontFamily: 'Sora_800ExtraBold' }]}>
-                Sign In
-              </Text>
-            )}
+            <Text style={[styles.btnText, { fontFamily: 'Sora_800ExtraBold' }]}>
+              Sign In
+            </Text>
           </LinearGradient>
         </TouchableOpacity>
 
@@ -195,6 +193,12 @@ export default function LoginScreen() {
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {loading && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.bg, zIndex: 100 }]}>
+          <LoadingWallet />
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }

@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   Pressable,
+  Keyboard,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -95,6 +96,7 @@ export default function AddExpenseScreen() {
   const [errorMsg, setErrorMsg]       = useState<string | null>(null);
 
   const handleSave = async () => {
+    Keyboard.dismiss();
     if (!amount || parseFloat(amount) <= 0) {
       showToast('error', 'Please enter a valid amount.');
       return;

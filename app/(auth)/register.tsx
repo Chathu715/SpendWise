@@ -8,7 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import { ArrowLeft, Eye, EyeOff, Info } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { LoadingWallet } from '../../components/LoadingWallet';
 
 export default function RegisterScreen() {
   const { theme } = useTheme();
@@ -34,6 +35,7 @@ export default function RegisterScreen() {
   const passwordRef = useRef<TextInput>(null);
 
   const handleSignUp = async () => {
+    Keyboard.dismiss();
     if (!fullName.trim() || !email.trim() || !password.trim()) {
       showToast('error', 'Please fill in all fields.');
       return;
@@ -214,13 +216,9 @@ export default function RegisterScreen() {
             end={{ x: 1, y: 0 }}
             style={[styles.btn, { opacity: loading ? 0.75 : 1 }]}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={[styles.btnText, { fontFamily: 'Sora_800ExtraBold' }]}>
-                Get Started
-              </Text>
-            )}
+            <Text style={[styles.btnText, { fontFamily: 'Sora_800ExtraBold' }]}>
+              Get Started
+            </Text>
           </LinearGradient>
         </TouchableOpacity>
 
@@ -232,6 +230,12 @@ export default function RegisterScreen() {
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {loading && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.bg, zIndex: 100 }]}>
+          <LoadingWallet />
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }

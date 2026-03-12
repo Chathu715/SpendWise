@@ -9,6 +9,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -57,6 +58,7 @@ export default function LimitsScreen() {
   };
 
   const handleSave = async () => {
+    Keyboard.dismiss();
     const val = parseFloat(inputVal);
     if (isNaN(val) || val < 0) {
       showToast('error', 'Please enter a valid amount.');

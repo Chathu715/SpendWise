@@ -9,20 +9,22 @@ import { useTheme } from '../../context/ThemeContext';
 function FABButton() {
   const { theme } = useTheme();
   return (
-    <TouchableOpacity
-      onPress={() => router.push('/add')}
-      style={[styles.fab, { borderColor: theme.bg }]}
-      activeOpacity={0.85}
-    >
-      <LinearGradient
-        colors={['#6C63FF', '#9B8FFF']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.fabGradient}
+    <View style={styles.fabContainer}>
+      <TouchableOpacity
+        onPress={() => router.push('/add')}
+        style={[styles.fab, { borderColor: theme.bg }]}
+        activeOpacity={0.85}
       >
-        <Plus size={24} color="#fff" strokeWidth={2.5} />
-      </LinearGradient>
-    </TouchableOpacity>
+        <LinearGradient
+          colors={['#6C63FF', '#9B8FFF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.fabGradient}
+        >
+          <Plus size={24} color="#fff" strokeWidth={2.5} />
+        </LinearGradient>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -93,6 +95,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fabContainer: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

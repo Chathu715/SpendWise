@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Pressable,
+  Modal,
 } from 'react-native';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue,
@@ -22,12 +24,17 @@ import { useAuth } from '../../context/AuthContext';
 import { useExpenses } from '../../context/ExpensesContext';
 import { useGreeting } from '../../hooks/useGreeting';
 import { AnimatedProgressBar } from '../../components/AnimatedProgressBar';
+import { LoadingWallet } from '../../components/LoadingWallet';
+import { MonthPicker } from '../../components/MonthPicker';
 import { CATS } from '../../constants/categories';
 import {
   formatLKR,
   formatDate,
-  getCurrentMonthLabel,
-  getFirstDayOfMonth,
+  getMonthLabel,
+  getMonthRange,
+  prevMonth,
+  nextMonth,
+  isCurrentMonth,
   getWarningLevel,
   getProgressColor,
 } from '../../lib/format';
@@ -41,11 +48,37 @@ export default function HomeScreen() {
 
   const [activeCategory, setActiveCategory] = useState<string>('All');
 
+  const now = new Date();
+  const [selYear, setSelYear]   = useState(now.getFullYear());
+  const [selMonth, setSelMonth] = useState(now.getMonth() + 1);
+
+  const handlePrevMonth = () => {
+    const p = prevMonth(selYear, selMonth);
+    setSelYear(p.year); setSelMonth(p.month); setActiveCategory('All');
+  };
+  const handleNextMonth = () => {
+    const n = nextMonth(selYear, selMonth);
+    setSelYear(n.year); setSelMonth(n.month); setActiveCategory('All');
+  };
+
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const confirmSignOut = async () => {
+    setSigningOut(true);
+    await signOut();
+    setShowSignOutModal(false);
+    router.replace('/(auth)/login');
+  };
+
+  const handleSignOut = () => setShowSignOutModal(true);
+
   const firstName = user?.full_name?.split(' ')[0] ?? 'there';
 
-  // Filter expenses to current month
-  const firstDay = getFirstDayOfMonth();
-  const monthExpenses = expenses.filter((e) => e.date >= firstDay);
+  // Filter expenses to selected month
+  const { first, last } = getMonthRange(selYear, selMonth);
+  const monthExpenses = expenses.filter((e) => e.date >= first && e.date <= last);
+  const viewingCurrent = isCurrentMonth(selYear, selMonth);
 
   // Filter by active category
   const filtered =
@@ -73,11 +106,21 @@ export default function HomeScreen() {
           </Text>
         </View>
         <TouchableOpacity
-          onPress={signOut}
+          onPress={handleSignOut}
           style={[styles.logoutBtn, { backgroundColor: theme.card, borderColor: theme.bord }]}
         >
           <LogOut size={15} color={theme.sub} />
         </TouchableOpacity>
+      </View>
+
+      {/* Month navigation */}
+      <View style={styles.monthPickerWrap}>
+        <MonthPicker
+          year={selYear}
+          month={selMonth}
+          onPrev={handlePrevMonth}
+          onNext={handleNextMonth}
+        />
       </View>
 
       <ScrollView
@@ -87,8 +130,8 @@ export default function HomeScreen() {
           { paddingBottom: insets.bottom + 100 },
         ]}
       >
-        {/* Warning banner */}
-        {warningLevel !== 'none' && (
+        {/* Warning banner — only for current month */}
+        {viewingCurrent && warningLevel !== 'none' && (
           <Animated.View
             entering={FadeInDown.duration(400)}
             style={[
@@ -138,29 +181,37 @@ export default function HomeScreen() {
           ]}
         >
           <Text style={[styles.summaryLabel, { color: theme.sub, fontFamily: 'Sora_700Bold' }]}>
-            TOTAL SPENT — {getCurrentMonthLabel().toUpperCase()}
+            TOTAL SPENT — {getMonthLabel(selYear, selMonth).toUpperCase()}
           </Text>
           <View style={styles.summaryAmountRow}>
             <Text style={[styles.summaryAmount, { color: theme.text, fontFamily: 'Sora_800ExtraBold' }]}>
               {formatLKR(totalSpent)}
             </Text>
           </View>
-          <View style={styles.summaryMeta}>
+          {viewingCurrent ? (
+            <>
+              <View style={styles.summaryMeta}>
+                <Text style={[styles.summaryOf, { color: theme.sub, fontFamily: 'Sora_500Medium' }]}>
+                  of {formatLKR(limits.overall)} limit
+                </Text>
+                <Text style={[styles.summaryPct, { color: progressColor, fontFamily: 'Sora_700Bold' }]}>
+                  {pct}%
+                </Text>
+              </View>
+              <AnimatedProgressBar
+                progress={pct}
+                color={progressColor}
+                trackColor={theme.bord}
+                height={6}
+                delay={300}
+                borderRadius={5}
+              />
+            </>
+          ) : (
             <Text style={[styles.summaryOf, { color: theme.sub, fontFamily: 'Sora_500Medium' }]}>
-              of {formatLKR(limits.overall)} limit
+              {monthExpenses.length} transaction{monthExpenses.length !== 1 ? 's' : ''}
             </Text>
-            <Text style={[styles.summaryPct, { color: progressColor, fontFamily: 'Sora_700Bold' }]}>
-              {pct}%
-            </Text>
-          </View>
-          <AnimatedProgressBar
-            progress={pct}
-            color={progressColor}
-            trackColor={theme.bord}
-            height={6}
-            delay={300}
-            borderRadius={5}
-          />
+          )}
         </Animated.View>
 
         {/* Category filter */}
@@ -222,6 +273,56 @@ export default function HomeScreen() {
           ))
         )}
       </ScrollView>
+
+      {/* Sign Out Modal */}
+      <Modal
+        visible={showSignOutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !signingOut && setShowSignOutModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.card, borderColor: theme.bord }]}>
+            <View style={[styles.modalIconWrap, { backgroundColor: theme.red + '15' }]}>
+              <LogOut size={30} color={theme.red} />
+            </View>
+            <Text style={[styles.modalTitle, { color: theme.text, fontFamily: 'Sora_800ExtraBold' }]}>
+              Sign Out
+            </Text>
+            <Text style={[styles.modalSub, { color: theme.sub, fontFamily: 'Sora_500Medium' }]}>
+              Are you sure you want to sign out of SpendWise?
+            </Text>
+            <View style={styles.modalBtns}>
+              <TouchableOpacity
+                onPress={() => setShowSignOutModal(false)}
+                disabled={signingOut}
+                style={[styles.modalCancelBtn, { backgroundColor: theme.bg, borderColor: theme.bord }]}
+              >
+                <Text style={[{ color: theme.sub, fontFamily: 'Sora_700Bold', fontSize: 14 }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={confirmSignOut}
+                disabled={signingOut}
+                activeOpacity={0.85}
+                style={[styles.modalSignOutBtn, { backgroundColor: theme.red, opacity: signingOut ? 0.75 : 1 }]}
+              >
+                <LogOut size={15} color="#fff" />
+                <Text style={[{ color: '#fff', fontFamily: 'Sora_700Bold', fontSize: 14 }]}>
+                  Sign Out
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {signingOut && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.bg, zIndex: 200 }]}>
+          <LoadingWallet />
+        </View>
+      )}
     </View>
   );
 }
@@ -345,6 +446,10 @@ function ExpenseItem({ expense, index, theme }: { expense: any; index: number; t
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  monthPickerWrap: {
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -480,4 +585,62 @@ const styles = StyleSheet.create({
   expenseDateRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   expenseDate: { fontSize: 12 },
   expenseAmount: { fontSize: 14 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  modalCard: {
+    width: '100%',
+    borderRadius: 28,
+    borderWidth: 1,
+    padding: 28,
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 24 },
+    shadowOpacity: 0.5,
+    shadowRadius: 48,
+    elevation: 20,
+  },
+  modalIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  modalTitle: { fontSize: 20 },
+  modalSub: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  modalBtns: { flexDirection: 'row', gap: 10, width: '100%' },
+  modalCancelBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSignOutBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 16,
+    paddingVertical: 14,
+    shadowColor: '#F87171',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
+  },
 });

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,15 @@ import { useTheme } from '../../context/ThemeContext';
 import { useExpenses } from '../../context/ExpensesContext';
 import { CATS } from '../../constants/categories';
 import { AnimatedProgressBar } from '../../components/AnimatedProgressBar';
-import { formatLKR, getCurrentMonthLabel, getFirstDayOfMonth } from '../../lib/format';
+import { MonthPicker } from '../../components/MonthPicker';
+import {
+  formatLKR,
+  getMonthLabel,
+  getMonthRange,
+  prevMonth,
+  nextMonth,
+  isCurrentMonth,
+} from '../../lib/format';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function AnalyticsScreen() {
@@ -20,29 +28,50 @@ export default function AnalyticsScreen() {
   const { expenses } = useExpenses();
   const insets = useSafeAreaInsets();
 
-  const firstDay = getFirstDayOfMonth();
-  const monthExpenses = expenses.filter((e) => e.date >= firstDay);
+  const now = new Date();
+  const [selYear, setSelYear]   = useState(now.getFullYear());
+  const [selMonth, setSelMonth] = useState(now.getMonth() + 1);
+
+  const handlePrevMonth = () => {
+    const p = prevMonth(selYear, selMonth);
+    setSelYear(p.year); setSelMonth(p.month);
+  };
+  const handleNextMonth = () => {
+    const n = nextMonth(selYear, selMonth);
+    setSelYear(n.year); setSelMonth(n.month);
+  };
+
+  const { first, last } = getMonthRange(selYear, selMonth);
+  const monthExpenses = expenses.filter((e) => e.date >= first && e.date <= last);
   const totalSpent = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const viewingCurrent = isCurrentMonth(selYear, selMonth);
 
-  // Weekly data (Mon–Sun of current week)
+  // Weekly breakdown within selected month (Wk1–Wk5)
   const weeklyData = useMemo(() => {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const now = new Date();
-    const dayOfWeek = now.getDay(); // 0=Sun
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - ((dayOfWeek + 6) % 7));
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const daysInMonth = new Date(selYear, selMonth, 0).getDate();
+    const weeks = [
+      { label: 'Wk 1', start: 1,  end: 7  },
+      { label: 'Wk 2', start: 8,  end: 14 },
+      { label: 'Wk 3', start: 15, end: 21 },
+      { label: 'Wk 4', start: 22, end: 28 },
+      ...(daysInMonth > 28 ? [{ label: 'Wk 5', start: 29, end: daysInMonth }] : []),
+    ];
 
-    return days.map((label, i) => {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      const dateStr = d.toISOString().split('T')[0];
+    // Which week is "now" in current month?
+    const todayStr = now.toISOString().split('T')[0];
+
+    return weeks.map(({ label, start, end }) => {
+      const clampedEnd = Math.min(end, daysInMonth);
+      const startStr = `${selYear}-${pad(selMonth)}-${pad(start)}`;
+      const endStr   = `${selYear}-${pad(selMonth)}-${pad(clampedEnd)}`;
       const total = expenses
-        .filter((e) => e.date === dateStr)
+        .filter((e) => e.date >= startStr && e.date <= endStr)
         .reduce((sum, e) => sum + e.amount, 0);
-      const isToday = dateStr === now.toISOString().split('T')[0];
-      return { label, total, dateStr, isToday };
+      const isActive = viewingCurrent && todayStr >= startStr && todayStr <= endStr;
+      return { label, total, isActive };
     });
-  }, [expenses]);
+  }, [expenses, selYear, selMonth, viewingCurrent]);
 
   const maxWeekly = Math.max(...weeklyData.map((d) => d.total), 1);
 
@@ -71,9 +100,12 @@ export default function AnalyticsScreen() {
         <Text style={[styles.title, { color: theme.text, fontFamily: 'Sora_800ExtraBold' }]}>
           Analytics
         </Text>
-        <Text style={[styles.subtitle, { color: theme.sub, fontFamily: 'Sora_500Medium' }]}>
-          {getCurrentMonthLabel()}
-        </Text>
+        <MonthPicker
+          year={selYear}
+          month={selMonth}
+          onPrev={handlePrevMonth}
+          onNext={handleNextMonth}
+        />
       </View>
 
       <ScrollView
@@ -86,18 +118,18 @@ export default function AnalyticsScreen() {
           style={[styles.card, { backgroundColor: theme.card, borderColor: theme.bord }]}
         >
           <Text style={[styles.cardLabel, { color: theme.sub, fontFamily: 'Sora_700Bold' }]}>
-            WEEKLY SPENDING
+            {viewingCurrent ? 'THIS MONTH — BY WEEK' : `${getMonthLabel(selYear, selMonth).toUpperCase()} — BY WEEK`}
           </Text>
           <View style={styles.barChart}>
-            {weeklyData.map((day, i) => {
-              const barPct = maxWeekly > 0 ? (day.total / maxWeekly) * 100 : 0;
+            {weeklyData.map((wk, i) => {
+              const barPct = maxWeekly > 0 ? (wk.total / maxWeekly) * 100 : 0;
               return (
                 <View key={i} style={styles.barCol}>
                   <Text style={[styles.barVal, { color: theme.sub, fontFamily: 'Sora_600SemiBold' }]}>
-                    {formatBar(day.total)}
+                    {formatBar(wk.total)}
                   </Text>
                   <View style={styles.barTrack}>
-                    {day.isToday ? (
+                    {wk.isActive ? (
                       <LinearGradient
                         colors={['#6C63FF', '#9B8FFF']}
                         style={[
@@ -117,7 +149,7 @@ export default function AnalyticsScreen() {
                           styles.barFill,
                           {
                             height: `${Math.max(barPct, 3)}%`,
-                            backgroundColor: theme.bord,
+                            backgroundColor: wk.total > 0 ? theme.acc + '50' : theme.bord,
                           },
                         ]}
                       />
@@ -127,12 +159,12 @@ export default function AnalyticsScreen() {
                     style={[
                       styles.barDay,
                       {
-                        color: day.isToday ? theme.acc : theme.sub,
-                        fontFamily: day.isToday ? 'Sora_700Bold' : 'Sora_500Medium',
+                        color: wk.isActive ? theme.acc : theme.sub,
+                        fontFamily: wk.isActive ? 'Sora_700Bold' : 'Sora_500Medium',
                       },
                     ]}
                   >
-                    {day.label}
+                    {wk.label}
                   </Text>
                 </View>
               );
@@ -174,7 +206,7 @@ export default function AnalyticsScreen() {
         {catBreakdown.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: theme.card, borderColor: theme.bord }]}>
             <Text style={[styles.emptyText, { color: theme.sub, fontFamily: 'Sora_500Medium' }]}>
-              No expenses this month
+              No expenses in {getMonthLabel(selYear, selMonth)}
             </Text>
           </View>
         ) : (
@@ -231,11 +263,10 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   header: {
     paddingHorizontal: 20,
-    paddingBottom: 16,
-    gap: 4,
+    paddingBottom: 4,
+    gap: 10,
   },
   title: { fontSize: 26 },
-  subtitle: { fontSize: 14 },
   scroll: { paddingHorizontal: 20, paddingTop: 4 },
   card: {
     borderWidth: 1,
