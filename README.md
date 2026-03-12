@@ -10,11 +10,11 @@ A personal expense tracker mobile app built with React Native (Expo) and Supabas
 - **Category Filtering** - Browse expenses by Food, Transport, Shopping, Health, Entertainment, Other
 - **Month Navigation** - Browse expenses and analytics for any past month using the month picker
 - **Monthly Summary** - See total spent vs. monthly spending limit with an animated progress bar
-- **Analytics** — Weekly bar chart (Wk 1–5) + per-category breakdown with percentage shares, navigable by month
-- **Spending Limits** — Set overall and per-category monthly limits; category limits are validated against the overall budget; warned at 80%, alerted when exceeded
-- **Theme Support** — Light, Dark, and System (follows device) themes with smooth transitions
-- **Animations** — Splash screen sequence, loading overlays, toast notifications, animated progress bars
-- **Safe Area Handling** — Proper notch, Dynamic Island, and gesture bar support on all screens
+- **Analytics** - Weekly bar chart (Wk 1–5) + per-category breakdown with percentage shares, navigable by month
+- **Spending Limits** - Set overall and per-category monthly limits; category limits are validated against the overall budget; warned at 80%, alerted when exceeded
+- **Theme Support** - Light, Dark, and System (follows device) themes with smooth transitions
+- **Animations** - Splash screen sequence, loading overlays, toast notifications, animated progress bars
+- **Safe Area Handling** - Proper notch, Dynamic Island, and gesture bar support on all screens
 
 ## Tech Stack
 
