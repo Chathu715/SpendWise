@@ -14,6 +14,7 @@ interface ExpensesContextValue {
   limits: SpendingLimits;
   loading: boolean;
   addExpense: (e: Omit<Expense, 'id'>) => Promise<void>;
+  deleteExpense: (id: string) => Promise<void>;
   updateLimit: (field: keyof SpendingLimits, value: number) => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -23,6 +24,7 @@ const ExpensesContext = createContext<ExpensesContextValue>({
   limits: MOCK_LIMITS,
   loading: false,
   addExpense: async () => {},
+  deleteExpense: async () => {},
   updateLimit: async () => {},
   refresh: async () => {},
 });
@@ -39,6 +41,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
       .from('expenses')
       .select('*')
       .eq('user_id', user.id)
+      .is('deleted_at', null)
       .order('date', { ascending: false });
     if (!error && data) {
       setExpenses(data.map((e) => ({
@@ -117,6 +120,17 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
+  const deleteExpense = useCallback(async (id: string) => {
+    if (!user) return;
+    const { error } = await supabase
+      .from('expenses')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('user_id', user.id);
+    if (error) throw new Error(error.message);
+    setExpenses((prev) => prev.filter((e) => e.id !== id));
+  }, [user]);
+
   const updateLimit = useCallback(async (field: keyof SpendingLimits, value: number) => {
     if (!user) return;
     const { error } = await supabase
@@ -134,7 +148,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
   }, [fetchExpenses, fetchLimits]);
 
   return (
-    <ExpensesContext.Provider value={{ expenses, limits, loading, addExpense, updateLimit, refresh }}>
+    <ExpensesContext.Provider value={{ expenses, limits, loading, addExpense, deleteExpense, updateLimit, refresh }}>
       {children}
     </ExpensesContext.Provider>
   );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Pressable,
   Modal,
 } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -18,7 +19,7 @@ import Animated, {
   withTiming,
   FadeInDown,
 } from 'react-native-reanimated';
-import { LogOut, CalendarDays, CircleAlert, Package } from 'lucide-react-native';
+import { LogOut, CalendarDays, CircleAlert, Package, Trash2 } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useExpenses } from '../../context/ExpensesContext';
@@ -42,7 +43,7 @@ import {
 export default function HomeScreen() {
   const { theme } = useTheme();
   const { user, signOut } = useAuth();
-  const { expenses, limits } = useExpenses();
+  const { expenses, limits, deleteExpense } = useExpenses();
   const greeting = useGreeting();
   const insets = useSafeAreaInsets();
 
@@ -269,6 +270,7 @@ export default function HomeScreen() {
               expense={expense}
               index={index}
               theme={theme}
+              onDelete={() => deleteExpense(expense.id)}
             />
           ))
         )}
@@ -407,39 +409,67 @@ function CategoryChipWithIcon({
   );
 }
 
-function ExpenseItem({ expense, index, theme }: { expense: any; index: number; theme: any }) {
+function ExpenseItem({
+  expense, index, theme, onDelete,
+}: {
+  expense: any; index: number; theme: any; onDelete: () => void;
+}) {
   const cat = CATS.find((c) => c.name === expense.category) ?? CATS[5];
   const Icon = cat.Icon;
+  const swipeRef = useRef<Swipeable>(null);
+
+  const renderRightActions = () => (
+    <TouchableOpacity
+      onPress={() => {
+        swipeRef.current?.close();
+        onDelete();
+      }}
+      style={styles.deleteAction}
+      activeOpacity={0.85}
+    >
+      <Trash2 size={20} color="#fff" />
+      <Text style={[styles.deleteText, { fontFamily: 'Sora_700Bold' }]}>Delete</Text>
+    </TouchableOpacity>
+  );
 
   return (
-    <Animated.View
-      entering={FadeInDown.delay(index * 60).duration(300)}
-      style={[
-        styles.expenseItem,
-        {
-          backgroundColor: theme.card,
-          borderColor: theme.bord,
-          shadowColor: '#000',
-        },
-      ]}
-    >
-      <View style={[styles.expenseIcon, { backgroundColor: cat.bg }]}>
-        <Icon size={18} color={cat.color} />
-      </View>
-      <View style={styles.expenseInfo}>
-        <Text style={[styles.expenseTitle, { color: theme.text, fontFamily: 'Sora_600SemiBold' }]}>
-          {expense.title}
-        </Text>
-        <View style={styles.expenseDateRow}>
-          <CalendarDays size={11} color={theme.sub} />
-          <Text style={[styles.expenseDate, { color: theme.sub, fontFamily: 'Sora_500Medium' }]}>
-            {expense.date}
+    <Animated.View entering={FadeInDown.delay(index * 60).duration(300)}>
+      <Swipeable
+        ref={swipeRef}
+        renderRightActions={renderRightActions}
+        overshootRight={false}
+        friction={2}
+        rightThreshold={40}
+      >
+        <View
+          style={[
+            styles.expenseItem,
+            {
+              backgroundColor: theme.card,
+              borderColor: theme.bord,
+              shadowColor: '#000',
+            },
+          ]}
+        >
+          <View style={[styles.expenseIcon, { backgroundColor: cat.bg }]}>
+            <Icon size={18} color={cat.color} />
+          </View>
+          <View style={styles.expenseInfo}>
+            <Text style={[styles.expenseTitle, { color: theme.text, fontFamily: 'Sora_600SemiBold' }]}>
+              {expense.title}
+            </Text>
+            <View style={styles.expenseDateRow}>
+              <CalendarDays size={11} color={theme.sub} />
+              <Text style={[styles.expenseDate, { color: theme.sub, fontFamily: 'Sora_500Medium' }]}>
+                {expense.date}
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.expenseAmount, { color: theme.text, fontFamily: 'Sora_700Bold' }]}>
+            {formatLKR(expense.amount)}
           </Text>
         </View>
-      </View>
-      <Text style={[styles.expenseAmount, { color: theme.text, fontFamily: 'Sora_700Bold' }]}>
-        {formatLKR(expense.amount)}
-      </Text>
+      </Swipeable>
     </Animated.View>
   );
 }
@@ -585,6 +615,19 @@ const styles = StyleSheet.create({
   expenseDateRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   expenseDate: { fontSize: 12 },
   expenseAmount: { fontSize: 14 },
+  deleteAction: {
+    backgroundColor: '#F87171',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    borderRadius: 20,
+    marginBottom: 10,
+    gap: 4,
+  },
+  deleteText: {
+    color: '#fff',
+    fontSize: 11,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
