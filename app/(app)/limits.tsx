@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -64,9 +64,38 @@ export default function LimitsScreen() {
       showToast('error', 'Please enter a valid amount.');
       return;
     }
+
+    const field = editing!.field;
+
+    if (field !== 'overall') {
+      // Sum of all category limits (with new value) cannot exceed overall limit
+      if (limits.overall > 0) {
+        const otherCatsTotal = CATS.reduce((sum, c) => {
+          const key = c.name.toLowerCase() as keyof SpendingLimits;
+          return key === field ? sum : sum + ((limits[key] as number) || 0);
+        }, 0);
+        if (otherCatsTotal + val > limits.overall) {
+          const remaining = limits.overall - otherCatsTotal;
+          showToast('error', `Category limits total would exceed overall limit. Max allowed for ${editing!.label}: ${formatLKR(Math.max(remaining, 0))}`);
+          return;
+        }
+      }
+    } else {
+      // Overall limit cannot be less than any existing category limit
+      const exceeding = CATS.find((c) => {
+        const catLimit = limits[c.name.toLowerCase() as keyof SpendingLimits] as number;
+        return catLimit > 0 && val < catLimit;
+      });
+      if (exceeding) {
+        const catLimit = limits[exceeding.name.toLowerCase() as keyof SpendingLimits] as number;
+        showToast('error', `Overall limit cannot be less than ${exceeding.name} limit (${formatLKR(catLimit)}).`);
+        return;
+      }
+    }
+
     try {
       setSaving(true);
-      await updateLimit(editing!.field, val);
+      await updateLimit(field, val);
       setSaving(false);
       setEditing(null);
       showToast('success', `${editing!.label} limit updated.`);
@@ -77,6 +106,16 @@ export default function LimitsScreen() {
   };
 
   const overallProgress = getProgressColor(totalSpent, limits.overall, theme.acc, theme.amber, theme.red);
+
+  // Remaining budget available to assign to the field currently being edited
+  const remainingForField = useMemo(() => {
+    if (!editing || editing.field === 'overall' || limits.overall <= 0) return null;
+    const otherCatsTotal = CATS.reduce((sum, c) => {
+      const key = c.name.toLowerCase() as keyof SpendingLimits;
+      return key === editing.field ? sum : sum + ((limits[key] as number) || 0);
+    }, 0);
+    return Math.max(limits.overall - otherCatsTotal, 0);
+  }, [editing, limits]);
 
   return (
     <View style={[styles.root, { backgroundColor: theme.bg }]}>
@@ -253,12 +292,13 @@ export default function LimitsScreen() {
                   Edit — {editing?.label}
                 </Text>
                 <Text style={[styles.sheetSub, { color: theme.sub, fontFamily: 'Sora_500Medium' }]}>
-                  Current: {formatLKR(
-                    editing
-                      ? (limits[editing.field] as number)
-                      : 0
-                  )}
+                  Current: {formatLKR(editing ? (limits[editing.field] as number) : 0)}
                 </Text>
+                {remainingForField !== null && (
+                  <Text style={[styles.sheetSub, { color: theme.acc, fontFamily: 'Sora_600SemiBold' }]}>
+                    Available: {formatLKR(remainingForField)}
+                  </Text>
+                )}
               </View>
               <TouchableOpacity
                 onPress={() => setEditing(null)}
@@ -290,6 +330,15 @@ export default function LimitsScreen() {
                 style={[styles.sheetInputText, { color: theme.text, fontFamily: 'Sora_800ExtraBold' }]}
               />
             </View>
+
+            {/* Remaining budget hint */}
+            {remainingForField !== null && (
+              <View style={[styles.remainingRow, { backgroundColor: theme.accD, borderColor: theme.acc + '30' }]}>
+                <Text style={[styles.remainingText, { color: theme.acc, fontFamily: 'Sora_600SemiBold' }]}>
+                  {formatLKR(remainingForField)} remaining from overall budget
+                </Text>
+              </View>
+            )}
 
             {/* Buttons */}
             <View style={styles.sheetBtns}>
@@ -477,6 +526,14 @@ const styles = StyleSheet.create({
     padding: 0,
     letterSpacing: -1,
   },
+  remainingRow: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  remainingText: { fontSize: 13 },
   sheetBtns: {
     flexDirection: 'row',
     gap: 10,
