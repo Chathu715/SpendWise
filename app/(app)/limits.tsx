@@ -23,7 +23,7 @@ import { AnimatedProgressBar } from '../../components/AnimatedProgressBar';
 import { BouncingDots } from '../../components/BouncingDots';
 import {
   formatLKR,
-  getFirstDayOfMonth,
+  getMonthRange,
   getWarningLevel,
   getProgressColor,
 } from '../../lib/format';
@@ -40,8 +40,9 @@ export default function LimitsScreen() {
   const [saving, setSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const firstDay = getFirstDayOfMonth();
-  const monthExpenses = expenses.filter((e) => e.date >= firstDay);
+  const now = new Date();
+  const { first, last } = getMonthRange(now.getFullYear(), now.getMonth() + 1);
+  const monthExpenses = expenses.filter((e) => e.date >= first && e.date <= last);
   const totalSpent = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   const catSpent = (catName: string) =>
@@ -264,11 +265,12 @@ export default function LimitsScreen() {
         visible={editing !== null}
         transparent
         animationType="slide"
+        statusBarTranslucent
         onRequestClose={() => { setEditing(null); setValidationError(null); }}
       >
         <KeyboardAvoidingView
           style={styles.modalWrap}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior="padding"
         >
           <TouchableOpacity
             style={styles.modalBackdrop}
@@ -332,22 +334,29 @@ export default function LimitsScreen() {
               />
             </View>
 
-            {/* Remaining budget hint */}
-            {remainingForField !== null && !validationError && (
-              <View style={[styles.remainingRow, { backgroundColor: theme.accD, borderColor: theme.acc + '30' }]}>
-                <Text style={[styles.remainingText, { color: theme.acc, fontFamily: 'Sora_600SemiBold' }]}>
-                  {formatLKR(remainingForField)} remaining from overall budget
+            {/* Remaining budget hint / validation error — always rendered to avoid height jump */}
+            {(remainingForField !== null || validationError) ? (
+              <View
+                style={[
+                  styles.remainingRow,
+                  validationError
+                    ? { backgroundColor: theme.red + '12', borderColor: theme.red + '40' }
+                    : { backgroundColor: theme.accD, borderColor: theme.acc + '30' },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.remainingText,
+                    { color: validationError ? theme.red : theme.acc, fontFamily: 'Sora_600SemiBold' },
+                  ]}
+                >
+                  {validationError
+                    ? validationError
+                    : `${formatLKR(remainingForField!)} remaining from overall budget`}
                 </Text>
               </View>
-            )}
-
-            {/* Inline validation error */}
-            {validationError && (
-              <View style={[styles.remainingRow, { backgroundColor: theme.red + '12', borderColor: theme.red + '40' }]}>
-                <Text style={[styles.remainingText, { color: theme.red, fontFamily: 'Sora_600SemiBold' }]}>
-                  {validationError}
-                </Text>
-              </View>
+            ) : (
+              <View style={styles.remainingRowPlaceholder} />
             )}
 
             {/* Buttons */}
@@ -544,6 +553,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   remainingText: { fontSize: 13 },
+  remainingRowPlaceholder: { height: 40 },
   sheetBtns: {
     flexDirection: 'row',
     gap: 10,
