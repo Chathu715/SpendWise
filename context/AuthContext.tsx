@@ -35,11 +35,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check existing session on app start
+    // Check existing session on app start — timeout after 8s to prevent stuck splash
+    const timeout = setTimeout(() => setLoading(false), 8000);
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      clearTimeout(timeout);
       if (session?.user) {
         await loadProfile(session.user.id, session.user.email ?? '');
       }
+      setLoading(false);
+    }).catch(() => {
+      clearTimeout(timeout);
       setLoading(false);
     });
 

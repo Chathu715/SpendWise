@@ -38,6 +38,7 @@ export default function LimitsScreen() {
   const [editing, setEditing] = useState<{ field: keyof SpendingLimits; label: string } | null>(null);
   const [inputVal, setInputVal] = useState('');
   const [saving, setSaving] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const firstDay = getFirstDayOfMonth();
   const monthExpenses = expenses.filter((e) => e.date >= firstDay);
@@ -53,6 +54,7 @@ export default function LimitsScreen() {
     : 0;
 
   const openEdit = (field: keyof SpendingLimits, label: string, currentVal: number) => {
+    setValidationError(null);
     setEditing({ field, label });
     setInputVal(currentVal > 0 ? String(currentVal) : '');
   };
@@ -61,14 +63,13 @@ export default function LimitsScreen() {
     Keyboard.dismiss();
     const val = parseFloat(inputVal);
     if (isNaN(val) || val < 0) {
-      showToast('error', 'Please enter a valid amount.');
+      setValidationError('Please enter a valid amount.');
       return;
     }
 
     const field = editing!.field;
 
     if (field !== 'overall') {
-      // Sum of all category limits (with new value) cannot exceed overall limit
       if (limits.overall > 0) {
         const otherCatsTotal = CATS.reduce((sum, c) => {
           const key = c.name.toLowerCase() as keyof SpendingLimits;
@@ -76,23 +77,23 @@ export default function LimitsScreen() {
         }, 0);
         if (otherCatsTotal + val > limits.overall) {
           const remaining = limits.overall - otherCatsTotal;
-          showToast('error', `Category limits total would exceed overall limit. Max allowed for ${editing!.label}: ${formatLKR(Math.max(remaining, 0))}`);
+          setValidationError(`Exceeds budget. Max for ${editing!.label}: ${formatLKR(Math.max(remaining, 0))}`);
           return;
         }
       }
     } else {
-      // Overall limit cannot be less than any existing category limit
       const exceeding = CATS.find((c) => {
         const catLimit = limits[c.name.toLowerCase() as keyof SpendingLimits] as number;
         return catLimit > 0 && val < catLimit;
       });
       if (exceeding) {
         const catLimit = limits[exceeding.name.toLowerCase() as keyof SpendingLimits] as number;
-        showToast('error', `Overall limit cannot be less than ${exceeding.name} limit (${formatLKR(catLimit)}).`);
+        setValidationError(`Cannot be less than ${exceeding.name} limit (${formatLKR(catLimit)}).`);
         return;
       }
     }
 
+    setValidationError(null);
     try {
       setSaving(true);
       await updateLimit(field, val);
@@ -101,7 +102,7 @@ export default function LimitsScreen() {
       showToast('success', `${editing!.label} limit updated.`);
     } catch (err: any) {
       setSaving(false);
-      showToast('error', err?.message ?? 'Failed to update limit.');
+      setValidationError(err?.message ?? 'Failed to update limit.');
     }
   };
 
@@ -263,7 +264,7 @@ export default function LimitsScreen() {
         visible={editing !== null}
         transparent
         animationType="slide"
-        onRequestClose={() => setEditing(null)}
+        onRequestClose={() => { setEditing(null); setValidationError(null); }}
       >
         <KeyboardAvoidingView
           style={styles.modalWrap}
@@ -271,7 +272,7 @@ export default function LimitsScreen() {
         >
           <TouchableOpacity
             style={styles.modalBackdrop}
-            onPress={() => setEditing(null)}
+            onPress={() => { setEditing(null); setValidationError(null); }}
           />
           <View
             style={[
@@ -320,7 +321,7 @@ export default function LimitsScreen() {
               </Text>
               <TextInput
                 value={inputVal}
-                onChangeText={setInputVal}
+                onChangeText={(v) => { setInputVal(v); setValidationError(null); }}
                 placeholder="0"
                 placeholderTextColor={theme.bord}
                 keyboardType="numeric"
@@ -332,10 +333,19 @@ export default function LimitsScreen() {
             </View>
 
             {/* Remaining budget hint */}
-            {remainingForField !== null && (
+            {remainingForField !== null && !validationError && (
               <View style={[styles.remainingRow, { backgroundColor: theme.accD, borderColor: theme.acc + '30' }]}>
                 <Text style={[styles.remainingText, { color: theme.acc, fontFamily: 'Sora_600SemiBold' }]}>
                   {formatLKR(remainingForField)} remaining from overall budget
+                </Text>
+              </View>
+            )}
+
+            {/* Inline validation error */}
+            {validationError && (
+              <View style={[styles.remainingRow, { backgroundColor: theme.red + '12', borderColor: theme.red + '40' }]}>
+                <Text style={[styles.remainingText, { color: theme.red, fontFamily: 'Sora_600SemiBold' }]}>
+                  {validationError}
                 </Text>
               </View>
             )}
